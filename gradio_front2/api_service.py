@@ -11,7 +11,7 @@ class ApiService:
     def __init__(self, base_url):
         self.base_url = base_url
         
-    async def request(self, method, endpoint, data=None, params=None, timeout=10.0):
+    async def request(self, method, endpoint, data=None, params=None, timeout=30.0):
         """执行API请求，与test_full_flow.py保持一致的格式"""
         # 确保endpoint没有前导斜杠
         if endpoint.startswith('/'):
@@ -106,7 +106,7 @@ class ApiService:
         results = {}
         try:
             # 同步调用以简化代码
-            with httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=30.0) as client:
                 # 1. 首先只检查健康端点 - 直接使用正确的URL
                 health_url = "http://localhost:8000/health"
                 logger.info(f"检查健康端点: {health_url}")
