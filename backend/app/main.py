@@ -17,16 +17,10 @@ from app.api.v1.endpoints import assessment as assessment_v1
 from app.api.v1.endpoints import content as content_v1
 from app.routers.learning_path import router as learning_path_router
 from app.api.v1.endpoints import learning_path
+from app.logging_config import setup_logging
 
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("backend_api.log", encoding="utf-8")
-    ]
-)
+setup_logging()
 logger = logging.getLogger("backend")
 
 # Create database tables
@@ -44,6 +38,40 @@ db = next(get_db())
 # Initialize database with default data
 init_db(db)
 
+# 添加日志中间件
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    # 生成请求ID
+    request_id = str(int(time.time() * 1000))
+    # 将请求ID添加到请求对象
+    request.state.request_id = request_id
+    
+    # 记录请求信息
+    logger.info(f"Request: {request.method} {request.url}", extra={"requestId": request_id})
+    
+    try:
+        # 处理请求
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        
+        # 记录响应信息
+        logger.info(
+            f"Response: {response.status_code} (took: {process_time:.3f}s)",
+            extra={"requestId": request_id}
+        )
+        
+        # 添加请求ID到响应头
+        response.headers["X-Request-ID"] = request_id
+        return response
+        
+    except Exception as e:
+        logger.exception(
+            f"Request failed: {str(e)}",
+            extra={"requestId": request_id}
+        )
+        raise
+
 # 添加CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -53,22 +81,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 添加请求日志中间件
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    
-    # 记录请求信息
-    logger.info(f"Request: {request.method} {request.url}")
-    
-    # 处理请求
-    response = await call_next(request)
-    
-    # 记录响应时间
-    process_time = time.time() - start_time
-    logger.info(f"Response: {response.status_code} (took: {process_time:.3f}s)")
-    
-    return response
+# API根路径端点
+@app.get("/api/v1")
+async def api_root():
+    """API根路径端点"""
+    return {
+        "name": settings.PROJECT_NAME,
+        "version": "1.0",
+        "description": "学习路径平台API",
+        "endpoints": {
+            "assessment": "/api/v1/assessment",
+            "content": "/api/v1/content",
+            "learning_paths": "/api/v1/learning-paths",
+            "analytics": "/api/v1/analytics"
+        }
+    }
 
 # 健康检查端点
 @app.get("/health")
@@ -84,12 +111,13 @@ async def api_status():
     
     try:
         api_service = AIService()
-        has_key = bool(api_service.api_key)
-        has_client = api_service.client is not None
+        has_client = bool(api_service.client)
         
         return {
-            "api_key_configured": has_key,
+            "api_key_configured": bool(api_service.api_key),
             "client_available": has_client,
+            "model": api_service.model,
+            "timeout": api_service.timeout,
             "environment": settings.ENVIRONMENT
         }
     except Exception as e:
@@ -99,43 +127,29 @@ async def api_status():
             "environment": settings.ENVIRONMENT
         }
 
-# 注册API路由，合理安排顺序，避免冲突
-# 1. 先注册API版本前缀路径
+# 注册API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-# 2. 注册带完整前缀的路由
-app.include_router(
-    assessment_v1.router, 
-    prefix="/api/v1/assessment", 
-    tags=["assessment"]
-)
-
-app.include_router(
-    content_v1.router,
-    prefix="/api/v1/content",
-    tags=["content"]
-)
-
-app.include_router(
-    learning_path.router,
-    prefix="/api/v1/learning-paths",
-    tags=["learning-paths"]
-)
-
-# 3. 注册自定义前缀的路由
+app.include_router(assessment_v1.router, prefix="/api/v1/assessment", tags=["assessment"])
+app.include_router(content_v1.router, prefix="/api/v1/content", tags=["content"])
+app.include_router(learning_path.router, prefix="/api/v1/learning-paths", tags=["learning-paths"])
 app.include_router(analytics.router)
-
-# 4. 最后注册learning路由，避免与learning-paths冲突
 app.include_router(learning_path_router)
 
-# 添加路由器注册日志以便调试
+# 添加路由器注册日志
 logger.info(f"已注册路由: {[route.path for route in app.routes]}")
 
 # 添加全局异常处理
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"全局异常: {str(exc)}")
-    logger.error(traceback.format_exc())
+    request_id = getattr(request.state, "request_id", "-")
+    logger.error(
+        f"全局异常: {str(exc)}",
+        extra={"requestId": request_id}
+    )
+    logger.error(
+        f"错误堆栈:\n{traceback.format_exc()}",
+        extra={"requestId": request_id}
+    )
     
     # 对于HTTP异常，保持原始状态码
     if isinstance(exc, HTTPException):

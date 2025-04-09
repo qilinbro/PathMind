@@ -5,12 +5,14 @@ from app.db.session import get_db
 from app.models.learning_path import LearningPath, PathEnrollment
 from app.models.content import LearningContent
 from app.models.user import User
+from app.services.ai_service import AIService
 import logging
 
 logger = logging.getLogger(__name__)
 
-# 创建路由器，不设置前缀（在main.py中设置）
+# 创建路由器和AI服务实例
 router = APIRouter()
+ai_service = AIService()
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_learning_path(
@@ -152,55 +154,75 @@ async def enroll_in_learning_path(
 async def get_learning_path(
     path_id: int,
     user_id: Optional[int] = None,
+    subject_area: Optional[str] = Query(None, description="主题领域"),
+    target_level: Optional[str] = Query(None, description="目标级别"),
     db: Session = Depends(get_db)
 ):
     """获取学习路径详情"""
     try:
         path = db.query(LearningPath).filter(LearningPath.id == path_id).first()
         
-        # 如果数据库中找不到路径，使用模拟数据而不是返回404错误
+        # 如果数据库中找不到路径，使用AI生成路径
         if not path:
-            logger.warning(f"学习路径ID {path_id} 不存在，使用模拟数据")
-            # 根据path_id返回不同的模拟数据
-            mock_path = {
-                "id": path_id,
-                "title": "Python编程基础" if path_id == 1 else "数据分析入门" if path_id == 2 else f"测试学习路径 {path_id}",
-                "description": "从零开始学习Python编程" if path_id == 1 else "掌握数据分析基础技能" if path_id == 2 else f"这是一个测试学习路径 {path_id}",
-                "subject": "programming" if path_id == 1 else "data_science" if path_id == 2 else "other",
-                "difficulty_level": 2,
-                "estimated_hours": 25,
-                "created_at": "2025-03-28T20:00:00",
-                "contents": [
-                    {
-                        "id": 101,
-                        "title": "Python基础语法" if path_id == 1 else "数据分析概述" if path_id == 2 else "基础概念",
-                        "description": "学习Python的基本语法和数据类型" if path_id == 1 else "了解数据分析的基本概念和流程" if path_id == 2 else "学习基础知识",
-                        "content_type": "video",
-                        "subject": "programming" if path_id == 1 else "data_science" if path_id == 2 else "other",
-                        "difficulty_level": 1
+            logger.info(f"学习路径ID {path_id} 不存在，使用AI生成")
+            try:
+                # 准备参数
+                subject = subject_area or "编程与开发"  # 默认主题
+                path_name = f"Learning Path {path_id}"  # 默认路径名
+                level = target_level or "beginner"      # 默认级别
+
+                # 使用AI生成学习路径
+                ai_path = await ai_service.generate_learning_analysis({
+                    "user_id": str(path_id),
+                    "study_time": "0",
+                    "completion_rate": "0",
+                    "interactions": "0",
+                    "content_types": [subject],
+                    "learning_goals": [f"Master {subject} at {level} level"],
+                    "subject_area": subject,
+                    "target_level": level
+                })
+
+                # 转换AI生成的路径为响应格式
+                path_content = []
+                if "recommendations" in ai_path and ai_path["recommendations"]:
+                    for i, rec in enumerate(ai_path["recommendations"], 1):
+                        content_type = "video" if "watch" in rec.lower() or "video" in rec.lower() else "interactive"
+                        path_content.append({
+                            "id": i,
+                            "title": f"Step {i}",
+                            "description": rec,
+                            "content_type": content_type,
+                            "subject": subject,
+                            "difficulty_level": 1 if level == "beginner" else 2 if level == "intermediate" else 3
+                        })
+
+                return {
+                    "id": path_id,
+                    "title": f"{subject} Learning Path",
+                    "description": ai_path.get("behavior_patterns", {}).get("study_consistency", "A customized learning path"),
+                    "subject": subject,
+                    "difficulty_level": 1 if level == "beginner" else 2 if level == "intermediate" else 3,
+                    "estimated_hours": 25,
+                    "contents": path_content,
+                    "metadata": {
+                        "goals": ai_path.get("strengths", []),
+                        "prerequisites": [],
+                        "difficulty": level
                     },
-                    {
-                        "id": 102,
-                        "title": "Python函数和模块" if path_id == 1 else "数据清洗与预处理" if path_id == 2 else "进阶知识",
-                        "description": "学习如何定义和使用Python函数和模块" if path_id == 1 else "学习数据清洗和预处理的基本方法" if path_id == 2 else "深入学习核心概念",
-                        "content_type": "interactive",
-                        "subject": "programming" if path_id == 1 else "data_science" if path_id == 2 else "other",
-                        "difficulty_level": 2
-                    }
-                ],
-                "metadata": {
-                    "goals": ["掌握基础语法", "理解核心概念"],
-                    "prerequisites": [],
-                    "difficulty": "beginner"
-                },
-                "user_progress": {
-                    "overall_progress": 0,
-                    "content_progress": {},
-                    "enrolled_at": "2025-03-28T20:00:00"
-                } if user_id else None
-            }
-            return mock_path
-            
+                    "user_progress": {
+                        "overall_progress": 0,
+                        "content_progress": {},
+                        "enrolled_at": None
+                    } if user_id else None
+                }
+            except Exception as e:
+                logger.error(f"AI生成学习路径失败: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"生成学习路径失败: {str(e)}"
+                )
+        
         # 获取路径内容
         contents = []
         for content in path.contents:
@@ -320,51 +342,6 @@ async def update_path_progress(
             detail=f"更新路径进度失败: {str(e)}"
         )
 
-@router.get("/enrolled", response_model=List[Dict[str, Any]])
-async def get_enrolled_learning_paths(
-    user_id: int = Query(..., description="用户ID"),
-    db: Session = Depends(get_db)
-):
-    """获取用户已注册的学习路径"""
-    try:
-        # 查询用户注册的所有路径
-        enrollments = (
-            db.query(PathEnrollment)
-            .filter(PathEnrollment.user_id == user_id)
-            .all()
-        )
-        
-        if not enrollments:
-            return []
-        
-        # 获取每个学习路径的详细信息
-        paths = []
-        for enrollment in enrollments:
-            path = db.query(LearningPath).filter(LearningPath.id == enrollment.path_id).first()
-            if path:
-                # 获取路径包含的内容数量
-                content_count = len(path.contents) if path.contents else 0
-                
-                paths.append({
-                    "id": path.id,
-                    "title": path.title,
-                    "description": path.description,
-                    "subject": path.subject,
-                    "difficulty_level": path.difficulty_level,
-                    "estimated_hours": path.estimated_hours,
-                    "created_at": path.created_at,
-                    "content_count": content_count,
-                    "progress": enrollment.progress
-                })
-        
-        return paths
-    except Exception as e:
-        logger.exception(f"获取已注册学习路径失败: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取已注册学习路径失败: {str(e)}"
-        )
-
 @router.get("/recommended", response_model=List[Dict[str, Any]])
 async def get_recommended_learning_paths(
     user_id: int = Query(..., description="用户ID"),
@@ -376,40 +353,66 @@ async def get_recommended_learning_paths(
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail=f"用户ID {user_id} 不存在")
-        
-        # 获取用户已注册的路径ID
-        enrolled_path_ids = [
-            enrollment.path_id for enrollment in 
-            db.query(PathEnrollment.path_id)
-            .filter(PathEnrollment.user_id == user_id)
-            .all()
-        ]
-        
-        # 查询未注册的路径
-        query = db.query(LearningPath)
-        if enrolled_path_ids:
-            query = query.filter(LearningPath.id.notin_(enrolled_path_ids))
-        
-        # 最多返回5条推荐
-        paths = query.limit(5).all()
-        
-        # 格式化响应
-        recommended = []
-        for path in paths:
-            content_count = len(path.contents) if path.contents else 0
+
+        # 使用AI服务生成推荐
+        try:
+            recommendations = await ai_service.generate_content_recommendations(user_id, limit=5)
+            paths = []
             
-            recommended.append({
-                "id": path.id,
-                "title": path.title,
-                "description": path.description,
-                "subject": path.subject,
-                "difficulty_level": path.difficulty_level,
-                "estimated_hours": path.estimated_hours,
-                "created_at": path.created_at,
-                "content_count": content_count
-            })
-        
-        return recommended
+            for rec in recommendations:
+                content = rec["content"]
+                paths.append({
+                    "id": content["id"],
+                    "title": content["title"],
+                    "description": rec["explanation"],
+                    "subject": "programming",  # 可以根据内容类型设置
+                    "difficulty_level": 2,  # 可以从match_score推断
+                    "estimated_hours": 20,
+                    "created_at": None,
+                    "content_count": 5,
+                    "recommendation_reason": rec["approach_suggestion"]
+                })
+            
+            return paths
+            
+        except Exception as e:
+            logger.error(f"AI推荐生成失败: {str(e)}")
+            # 如果AI推荐失败，回退到数据库查询
+            
+            # 获取用户已注册的路径ID
+            enrolled_path_ids = [
+                enrollment.path_id for enrollment in 
+                db.query(PathEnrollment.path_id)
+                .filter(PathEnrollment.user_id == user_id)
+                .all()
+            ]
+            
+            # 查询未注册的路径
+            query = db.query(LearningPath)
+            if enrolled_path_ids:
+                query = query.filter(LearningPath.id.notin_(enrolled_path_ids))
+            
+            # 最多返回5条推荐
+            paths = query.limit(5).all()
+            
+            # 格式化响应
+            recommended = []
+            for path in paths:
+                content_count = len(path.contents) if path.contents else 0
+                
+                recommended.append({
+                    "id": path.id,
+                    "title": path.title,
+                    "description": path.description,
+                    "subject": path.subject,
+                    "difficulty_level": path.difficulty_level,
+                    "estimated_hours": path.estimated_hours,
+                    "created_at": path.created_at,
+                    "content_count": content_count
+                })
+            
+            return recommended
+            
     except HTTPException as e:
         raise e
     except Exception as e:

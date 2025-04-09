@@ -14,23 +14,15 @@ class Settings(BaseSettings):
     # JWT配置
     SECRET_KEY: str = os.getenv("SECRET_KEY", "YOUR_SECRET_KEY_HERE")
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
     
     # CORS设置
     CORS_ORIGINS: List[str] = ["*"]
     BACKEND_CORS_ORIGINS: Optional[Union[List[str], str]] = None  # 兼容旧配置
     
     # ZhipuAI API配置
-    ZHIPU_API_KEY: str = os.getenv("ZHIPU_API_KEY", "")
-    
-    # Redis配置
-    REDIS_HOST: Optional[str] = None
-    REDIS_PORT: Optional[str] = None
-    REDIS_DB: Optional[str] = None
-    
-    # 模型配置
-    MODEL_PATH: Optional[str] = None
-    EMBEDDINGS_DIMENSION: Optional[str] = None
+    ZHIPUAI_API_KEY: str = os.getenv("ZHIPUAI_API_KEY", "")
+    ZHIPUAI_MODEL: str = os.getenv("ZHIPUAI_MODEL", "glm-4-plus")
+    ZHIPUAI_TIMEOUT: int = int(os.getenv("ZHIPUAI_TIMEOUT", 30))
     
     # 环境设置
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")  # development, testing, production
