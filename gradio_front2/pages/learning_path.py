@@ -837,7 +837,7 @@ def create_learning_path_tab(api_service, user_id):
     study_control.click(
         fn=lambda: "结束学习" if study_control.value == "开始学习" else "开始学习",
         outputs=study_control,
-        _js=toggle_study_session()
+        js=toggle_study_session()
     )
     
     # 初始化全局变量

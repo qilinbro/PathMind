@@ -8,23 +8,25 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 from matplotlib import font_manager as fm
+# 设置日志
+logger = logging.getLogger(__name__)
 
 matplotlib.use('Agg')  # 使用非交互式后端
 # 设置中文字体
 def find_font(font_name):
+    # print(fm.findSystemFonts(fontpaths=None, fontext='ttf'))
     for font in fm.findSystemFonts(fontpaths=None, fontext='ttf'):
         if font_name in Path(font).name:
             return font
     return None
 
-font_path = find_font("楷体_GB2312")  # 自动查找字体
+font_path = find_font("MSYH.ttf")  # 自动查找字体
 if font_path is None:
-    raise FileNotFoundError("未找到 '楷体_GB2312' 字体，请检查系统是否安装该字体")
+    logger.error("未找到 'Microsoft YaHei' 字体，请检查系统是否安装该字体")
+    font_path = "./LXGWNeoXiHei.ttf"
 my_font = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = my_font.get_name()
 
-# 设置日志
-logger = logging.getLogger(__name__)
 
 def create_learning_style_chart(visual=70, auditory=50, kinesthetic=80, reading=40):
     """创建学习风格雷达图"""
