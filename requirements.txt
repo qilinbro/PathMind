@@ -14,6 +14,9 @@ asyncio
 numpy
 pandas
 
+# 日志和调试
+logging
+
 # 其他工具
 python-multipart
 pillow
