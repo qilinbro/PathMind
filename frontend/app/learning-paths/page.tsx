@@ -32,14 +32,41 @@ export default function LearningPathsPage() {
   const [recommendedPaths, setRecommendedPaths] = useState<LearningPath[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // 修改 handleEnroll 函数，添加更多日志和错误处理
+  const handleEnroll = async (pathId: number) => {
+    try {
+      console.log(`开始加入学习路径: ${pathId}`)
+      const response = await apiService.enrollLearningPath(TEMP_USER_ID, pathId)
+      console.log("加入学习路径响应:", response)
+
+      if (response && response.success !== false) {
+        // 显示成功消息（可以添加一个toast通知）
+        console.log("成功加入学习路径")
+
+        // 重新获取数据以更新UI
+        fetchData()
+      } else {
+        console.error("加入学习路径失败:", response?.message)
+        // 这里可以添加错误提示
+      }
+    } catch (error) {
+      console.error("Failed to enroll in learning path:", error)
+    }
+  }
+
+  // 修改 fetchData 函数，添加更多日志
   const fetchData = async () => {
     setIsLoading(true)
     try {
+      console.log("开始获取学习路径数据...")
       // 获取所有学习路径
       const paths = await apiService.getLearningPaths()
+      console.log("获取到的学习路径数据:", paths)
 
       // 获取推荐的学习路径
+      console.log("开始获取推荐学习路径...")
       const recommendedPathsData = await apiService.getRecommendedPaths()
+      console.log("获取到的推荐学习路径:", recommendedPathsData)
 
       // 假设API返回的数据需要转换为前端需要的格式
       // 实际情况下，这里的转换逻辑应该根据API的实际返回格式调整
@@ -56,6 +83,8 @@ export default function LearningPathsPage() {
           tags: path.tags || [],
         }))
 
+      console.log("已加入的学习路径:", enrolled)
+
       const recommended = recommendedPathsData.map((path) => ({
         id: path.id,
         title: path.title,
@@ -63,6 +92,8 @@ export default function LearningPathsPage() {
         estimatedTime: path.estimated_time || "未知",
         tags: path.tags || [],
       }))
+
+      console.log("处理后的推荐学习路径:", recommended)
 
       setEnrolledPaths(enrolled)
       setRecommendedPaths(recommended)
@@ -91,16 +122,6 @@ export default function LearningPathsPage() {
       path.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       path.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase())),
   )
-
-  const handleEnroll = async (pathId: number) => {
-    try {
-      await apiService.enrollLearningPath(TEMP_USER_ID, pathId)
-      // 重新获取数据以更新UI
-      fetchData()
-    } catch (error) {
-      console.error("Failed to enroll in learning path:", error)
-    }
-  }
 
   return (
     <div className="container py-6">

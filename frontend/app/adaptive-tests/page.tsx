@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useRouter } from "next/navigation"
 
 // Mock data - would be replaced with actual API calls
 const mockAvailableTests = [
@@ -65,6 +66,7 @@ const mockCompletedTests = [
 ]
 
 export default function AdaptiveTestsPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [difficultyFilter, setDifficultyFilter] = useState("all")
 
@@ -86,6 +88,14 @@ export default function AdaptiveTestsPage() {
       test.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       test.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase())),
   )
+
+  const handleTestClick = (testId: number) => {
+    router.push(`/adaptive-tests/${testId}`)
+  }
+
+  const handleResultsClick = (testId: number) => {
+    router.push(`/adaptive-tests/${testId}/results`)
+  }
 
   return (
     <div className="container py-6">
@@ -127,7 +137,11 @@ export default function AdaptiveTestsPage() {
         <TabsContent value="available">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredAvailableTests.map((test) => (
-              <Card key={test.id} className="flex flex-col">
+              <Card
+                key={test.id}
+                className="flex flex-col cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => handleTestClick(test.id)}
+              >
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <CardTitle>{test.title}</CardTitle>
@@ -159,7 +173,13 @@ export default function AdaptiveTestsPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full">
+                  <Button
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      router.push(`/adaptive-tests/${test.id}/take`)
+                    }}
+                  >
                     Start Test
                     <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -172,7 +192,11 @@ export default function AdaptiveTestsPage() {
         <TabsContent value="completed">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredCompletedTests.map((test) => (
-              <Card key={test.id} className="flex flex-col">
+              <Card
+                key={test.id}
+                className="flex flex-col cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => handleTestClick(test.id)}
+              >
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <CardTitle>{test.title}</CardTitle>
@@ -210,7 +234,14 @@ export default function AdaptiveTestsPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button variant="outline" className="w-full">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleResultsClick(test.id)
+                    }}
+                  >
                     View Results
                     <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
