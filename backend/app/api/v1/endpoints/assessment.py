@@ -292,16 +292,33 @@ def get_user_learning_progress(
 ):
     """Get a user's learning progress and improvement suggestions"""
     try:
+        # 检查用户是否存在
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail=f"用户ID {user_id} 不存在")
+            
         # Get the user's most recent assessment
         latest_assessment = (
             db.query(LearningStyleAssessment)
             .filter(LearningStyleAssessment.user_id == user_id)
-            .order_by(LearningStyleAssessment.completed_at.desc())  # 使用completed_at替代created_at
+            .order_by(LearningStyleAssessment.completed_at.desc())
             .first()
         )
         
+        # 如果用户没有评估记录，返回默认数据而不是抛出错误
         if not latest_assessment:
-            raise HTTPException(status_code=404, detail="No assessments found for this user")
+            logger.info(f"用户 {user_id} 没有评估记录，返回默认数据")
+            return {
+                "user_id": user_id,
+                "name": getattr(user, "name", None) or getattr(user, "full_name", None) or getattr(user, "username", "用户"),
+                "email": getattr(user, "email", "user@example.com"),
+                "learning_style": "未知",
+                "overall_progress": 0,
+                "completed_paths": 0,
+                "active_paths": 0,
+                "completed_tests": 0,
+                "recent_activities": []
+            }
         
         # Get previous assessments for comparison
         previous_assessments = (

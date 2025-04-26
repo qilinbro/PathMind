@@ -18,6 +18,8 @@ from app.api.v1.endpoints import content as content_v1
 from app.routers.learning_path import router as learning_path_router
 from app.api.v1.endpoints import learning_path
 from app.logging_config import setup_logging
+from app.routers import users
+from app.routers import user_progress  # 新增用户进度路由模块
 
 # 配置日志
 setup_logging()
@@ -134,6 +136,8 @@ app.include_router(content_v1.router, prefix="/api/v1/content", tags=["content"]
 app.include_router(learning_path.router, prefix="/api/v1/learning-paths", tags=["learning-paths"])
 app.include_router(analytics.router)
 app.include_router(learning_path_router)
+app.include_router(users.router)
+app.include_router(user_progress.router)  # 注册用户进度路由
 
 # 添加路由器注册日志
 logger.info(f"已注册路由: {[route.path for route in app.routes]}")
