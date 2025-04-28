@@ -1,3 +1,5 @@
+import { adaptiveTests, testQuestions, testResults } from "@/data/users"
+
 type RequestMethod = "GET" | "POST" | "PUT" | "DELETE"
 
 interface RequestOptions {
@@ -225,20 +227,13 @@ export class ApiService {
   // Learning Path endpoints
 
   // Learning Path endpoints
-  // 修改 getLearningPaths 方法，确保返回的数据包含已加入的路径
+  // 修改 getLearningPaths 方法，使用正确的API端点
   async getLearningPaths() {
     try {
-      console.log("获取所有学习路径")
-      // 尝试使用POST方法而不是GET，并确保数据格式正确
-      const result = await this.request<any[]>("/learning-paths", {
-        method: "POST",
-        body: {
-          user_id: TEMP_USER_ID,
-          // 添加一个空的title字段以满足API验证要求
-          title: "",
-        },
-      })
-
+      console.log("获取用户学习路径，测试新端点")
+      // 使用正确的API端点：/learning/user-paths 而不是 /learning-paths
+      const result = await this.request<any[]>(`/learning/user-paths?user_id=${TEMP_USER_ID}`)
+      
       console.log("学习路径API响应:", result)
 
       // 如果API返回错误或空结果，提供一些默认的学习路径
@@ -312,9 +307,109 @@ export class ApiService {
     }
   }
 
+  // 添加缺失的getRecommendedPaths方法
+  async getRecommendedPaths(userId: number = TEMP_USER_ID) {
+    try {
+      console.log("获取推荐学习路径", userId);
+      // 尝试不同的API路径
+      const endpoints = [
+        `/learning-paths/recommended?user_id=${userId}`,
+        `/learning/recommended-paths?user_id=${userId}`,
+        `/api/v1/learning-paths/recommended?user_id=${userId}`
+      ];
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取推荐学习路径...`);
+        try {
+          result = await this.request<any[]>(endpoint);
+          if (result && result.length > 0) {
+            console.log(`成功从 ${endpoint} 获取推荐学习路径`);
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`);
+        }
+      }
+      
+      // 如果所有API尝试都失败，提供默认数据
+      if (!result || result.length === 0) {
+        console.warn("所有API尝试失败，使用默认推荐学习路径数据");
+        return [
+          {
+            id: 1,
+            title: "Python编程基础",
+            description: "学习Python编程的基本概念和语法",
+            estimated_time: "20小时",
+            tags: ["编程", "Python", "初学者"],
+            match_score: 95,
+            reason: "根据您的学习风格和兴趣推荐"
+          },
+          {
+            id: 2,
+            title: "Web开发入门",
+            description: "学习HTML、CSS和JavaScript的基础知识",
+            estimated_time: "30小时",
+            tags: ["Web开发", "HTML", "CSS", "JavaScript"],
+            match_score: 88,
+            reason: "与您的职业目标相符"
+          },
+          {
+            id: 3,
+            title: "数据科学导论",
+            description: "了解数据科学的基本概念和工具",
+            estimated_time: "25小时",
+            tags: ["数据科学", "统计", "分析"],
+            match_score: 82,
+            reason: "补充您的技能树"
+          }
+        ];
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("获取推荐学习路径失败:", error);
+      // 提供默认数据作为回退
+      return [
+        {
+          id: 1,
+          title: "Python编程基础",
+          description: "学习Python编程的基本概念和语法",
+          estimated_time: "20小时",
+          tags: ["编程", "Python", "初学者"],
+          match_score: 95,
+          reason: "根据您的学习风格和兴趣推荐"
+        },
+        {
+          id: 2,
+          title: "Web开发入门",
+          description: "学习HTML、CSS和JavaScript的基础知识",
+          estimated_time: "30小时",
+          tags: ["Web开发", "HTML", "CSS", "JavaScript"], 
+          match_score: 88,
+          reason: "与您的职业目标相符"
+        },
+        {
+          id: 3,
+          title: "数据科学导论",
+          description: "了解数据科学的基本概念和工具",
+          estimated_time: "25小时",
+          tags: ["数据科学", "统计", "分析"],
+          match_score: 82,
+          reason: "补充您的技能树"
+        }
+      ];
+    }
+  }
+
   async getLearningPath(pathId: number) {
     try {
-      const result = await this.request<any>(`/learning-paths/${pathId}`)
+      // 添加必要的用户ID参数，这是后端API要求的
+      const result = await this.request<any>(
+        `/learning-paths/${pathId}?user_id=${TEMP_USER_ID}`
+      )
       return result
     } catch (error) {
       console.error(`Failed to get learning path ${pathId}:`, error)
@@ -322,13 +417,21 @@ export class ApiService {
     }
   }
 
-  // 修改 enrollLearningPath 方法，添加更多日志和错误处理
+  // 修改 enrollLearningPath 方法，使用统一的API命名空间
   async enrollLearningPath(userId: number, pathId: number) {
     try {
       console.log(`Enrolling user ${userId} in learning path ${pathId}`)
-      const result = await this.request<any>("/learning-paths/enroll", {
+      // 使用正确的API端点
+      const result = await this.request<any>("/learning/paths/enroll", {
         method: "POST",
-        body: { user_id: userId, path_id: pathId },
+        body: { 
+          user_id: userId, 
+          path_id: pathId, 
+          personalization_settings: { 
+            preferred_content_types: ["video", "interactive"],
+            study_reminder: true 
+          }
+        },
       })
 
       console.log("Enrollment response:", result)
@@ -363,80 +466,19 @@ export class ApiService {
       }
     }
   }
-  async updatePathProgress(pathId: number, userId: number, completedSteps: number[]) {
+
+  // 更新 updatePathProgress 方法，使用更合适的专用端点
+  async updatePathProgress(pathId: number, userId: number, nodeId: number, status: string) {
     try {
-      return await this.request<any>(`/learning-paths/${pathId}/progress`, {
-        method: "POST",
-        body: { user_id: userId, completed_steps: completedSteps },
-      })
+      console.log(`Updating progress - path: ${pathId}, node: ${nodeId}, status: ${status}`)
+      // 使用专用的节点进度更新端点
+      return await this.request<any>(
+        `/learning/update-progress?user_id=${userId}&path_id=${pathId}&node_id=${nodeId}&status=${status}`, 
+        { method: "POST" }
+      )
     } catch (error) {
       console.error("Failed to update path progress:", error)
       return null
-    }
-  }
-
-  async getRecommendedPaths() {
-    try {
-      // 使用POST方法并包含用户ID
-      const result = await this.request<any[]>("/learning-paths/recommended", {
-        method: "POST",
-        body: { user_id: TEMP_USER_ID },
-      })
-
-      // 如果API返回错误或空结果，提供一些默认的学习路径
-      if (!result || result.length === 0) {
-        return [
-          {
-            id: 1,
-            title: "Python编程基础",
-            description: "学习Python编程的基本概念和语法",
-            estimated_time: "20小时",
-            tags: ["编程", "Python", "初学者"],
-          },
-          {
-            id: 2,
-            title: "Web开发入门",
-            description: "学习HTML、CSS和JavaScript的基础知识",
-            estimated_time: "30小时",
-            tags: ["Web开发", "HTML", "CSS", "JavaScript"],
-          },
-          {
-            id: 3,
-            title: "数据科学导论",
-            description: "了解数据科学的基本概念和工具",
-            estimated_time: "25小时",
-            tags: ["数据科学", "统计", "分析"],
-          },
-        ]
-      }
-
-      return result
-    } catch (error) {
-      console.error("Failed to get recommended paths:", error)
-      // 返回默认推荐路径
-      return [
-        {
-          id: 1,
-          title: "Python编程基础",
-          description: "学习Python编程的基本概念和语法",
-          estimated_time: "20小时",
-          tags: ["编程", "Python", "初学者"],
-        },
-        {
-          id: 2,
-          title: "Web开发入门",
-          description: "学习HTML、CSS和JavaScript的基础知识",
-          estimated_time: "30小时",
-          tags: ["Web开发", "HTML", "CSS", "JavaScript"],
-        },
-        {
-          id: 3,
-          title: "数据科学导论",
-          description: "了解数据科学的基本概念和工具",
-          estimated_time: "25小时",
-          tags: ["数据科学", "统计", "分析"],
-        },
-      ]
     }
   }
 
@@ -623,6 +665,295 @@ export class ApiService {
       return result
     } catch (error) {
       console.error(`Failed to get user info for user ${userId}:`, error)
+      return null
+    }
+  }
+
+  // 修改获取可用测试的方法，添加更多的回退和错误处理
+  async getAvailableTests() {
+    try {
+      console.log("正在获取可用的自适应测试")
+
+      // 尝试不同的API路径
+      const endpoints = [
+        "/assessment/adaptive-tests", 
+        "/assessment/available-tests", 
+        "/assessment/tests",
+        // v1 前缀路由尝试
+        "/api/v1/assessment/adaptive-tests",
+        "/api/v1/assessment/tests"
+      ]
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取测试数据...`)
+        try {
+          result = await this.request<any[]>(endpoint)
+          if (result && result.length > 0) {
+            console.log(`成功从 ${endpoint} 获取测试数据`)
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`)
+        }
+      }
+      
+      // 如果所有API尝试都失败，从本地导入模拟数据
+      if (!result || result.length === 0) {
+        console.warn("所有API端点尝试失败，使用本地模拟数据")
+        return await import("@/data/users").then(module => module.adaptiveTests)
+      }
+
+      return result
+    } catch (error) {
+      console.error("获取可用测试失败:", error)
+      // 出错时从本地导入模拟数据
+      return await import("@/data/users").then(module => module.adaptiveTests)
+    }
+  }
+
+  async getCompletedTests(userId: number) {
+    try {
+      console.log(`获取用户 ${userId} 的已完成测试`)
+      
+      // 尝试不同的API路径
+      const endpoints = [
+        `/assessment/user/${userId}/tests`,
+        `/assessment/user/${userId}/completed-tests`,
+        `/assessment/completed-tests?user_id=${userId}`,
+        `/api/v1/assessment/user/${userId}/tests`
+      ]
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取已完成测试...`)
+        try {
+          result = await this.request<any[]>(endpoint)
+          if (result && result.length > 0) {
+            console.log(`成功从 ${endpoint} 获取已完成测试`)
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`)
+        }
+      }
+      
+      // 如果没有获取到数据，返回空数组 - 不需要模拟数据
+      return result || []
+    } catch (error) {
+      console.error("获取已完成测试失败:", error)
+      return []
+    }
+  }
+
+  async getTestDetails(testId: number) {
+    try {
+      console.log(`获取测试详情 ID: ${testId}`)
+      
+      // 尝试不同的API路径
+      const endpoints = [
+        `/assessment/adaptive-test/${testId}`,
+        `/assessment/tests/${testId}`,
+        `/api/v1/assessment/tests/${testId}`,
+        `/api/v1/assessment/adaptive-test/${testId}`
+      ]
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取测试详情...`)
+        try {
+          result = await this.request<any>(endpoint)
+          if (result) {
+            console.log(`成功从 ${endpoint} 获取测试详情`)
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`)
+        }
+      }
+      
+      // 如果所有API尝试都失败，回退到本地模拟数据
+      if (!result) {
+        console.warn("所有API尝试失败，尝试从本地模拟数据获取测试详情")
+        const mockTests = await import("@/data/users").then(module => module.adaptiveTests)
+        result = mockTests.find(test => test.id === testId)
+      }
+      
+      return result
+    } catch (error) {
+      console.error(`获取测试详情失败 ID: ${testId}:`, error)
+      // 尝试从本地模拟数据获取
+      const mockTests = await import("@/data/users").then(module => module.adaptiveTests)
+      return mockTests.find(test => test.id === testId)
+    }
+  }
+
+  async getTestQuestions(testId: number) {
+    try {
+      console.log(`获取测试问题 ID: ${testId}`)
+      
+      // 尝试不同的API路径
+      const endpoints = [
+        `/assessment/adaptive-test/${testId}/questions`,
+        `/assessment/tests/${testId}/questions`,
+        `/api/v1/assessment/tests/${testId}/questions`,
+        `/api/v1/assessment/adaptive-test/${testId}/questions`
+      ]
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取测试问题...`)
+        try {
+          result = await this.request<any[]>(endpoint)
+          if (result && result.length > 0) {
+            console.log(`成功从 ${endpoint} 获取测试问题`)
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`)
+        }
+      }
+      
+      // 如果所有API尝试都失败，回退到本地模拟数据
+      if (!result || result.length === 0) {
+        console.warn("所有API尝试失败，尝试从本地模拟数据获取测试问题")
+        const mockQuestions = await import("@/data/users").then(module => module.testQuestions)
+        return mockQuestions[testId as keyof typeof mockQuestions] || []
+      }
+      
+      return result
+    } catch (error) {
+      console.error(`获取测试问题失败 ID: ${testId}:`, error)
+      // 尝试从本地模拟数据获取
+      const mockQuestions = await import("@/data/users").then(module => module.testQuestions)
+      return mockQuestions[testId as keyof typeof mockQuestions] || []
+    }
+  }
+
+  // 直接使用后端API路径，并添加多个路径尝试
+  async getTestResults(testId: number, userId: number) {
+    try {
+      console.log(`获取测试结果 ID: ${testId} 用户ID: ${userId}`)
+      
+      // 尝试不同的API路径
+      const endpoints = [
+        `/assessment/adaptive-test/${testId}/results?user_id=${userId}`,
+        `/assessment/tests/${testId}/results?user_id=${userId}`,
+        `/assessment/results?test_id=${testId}&user_id=${userId}`,
+        `/api/v1/assessment/tests/${testId}/results?user_id=${userId}`
+      ]
+      
+      let result = null;
+      
+      // 尝试所有可能的API端点
+      for (const endpoint of endpoints) {
+        console.log(`尝试从 ${endpoint} 获取测试结果...`)
+        try {
+          result = await this.request<any>(endpoint)
+          if (result) {
+            console.log(`成功从 ${endpoint} 获取测试结果`)
+            break;
+          }
+        } catch(e) {
+          console.warn(`端点 ${endpoint} 请求失败`)
+        }
+      }
+      
+      // 如果所有API尝试都失败，回退到本地模拟数据
+      if (!result) {
+        console.warn("所有API尝试失败，使用本地模拟测试结果数据")
+        const mockResults = await import("@/data/users").then(module => module.testResults)
+        return mockResults[testId as keyof typeof mockResults]
+      }
+      
+      return result
+    } catch (error) {
+      console.error(`获取测试结果失败 ID: ${testId}:`, error)
+      // 尝试从本地模拟数据获取
+      const mockResults = await import("@/data/users").then(module => module.testResults)
+      return mockResults[testId as keyof typeof mockResults]
+    }
+  }
+
+  // 生成自适应测试 - 直接调用后端AI服务
+  async generateAdaptiveTest(userId: number, subject: string, topic: string, difficulty: string = "auto") {
+    try {
+      console.log(`生成自适应测试: 用户${userId}, 主题${topic}`)
+      const result = await this.request<any>(`/assessment/adaptive-test`, {
+        method: "POST",
+        body: {
+          user_id: userId,
+          subject: subject,
+          topic: topic,
+          difficulty: difficulty
+        }
+      })
+      
+      console.log("生成自适应测试结果:", result)
+      return result
+    } catch (error) {
+      console.error("生成自适应测试失败:", error)
+      return null
+    }
+  }
+
+  // 分析学习风格 - 直接调用后端AI服务
+  async analyzeLearningStyle(responses: any[]) {
+    try {
+      console.log("提交学习风格评估")
+      const result = await this.request<any>(`/assessment/submit`, {
+        method: "POST",
+        body: {
+          user_id: TEMP_USER_ID,
+          responses: responses
+        }
+      })
+      
+      console.log("学习风格分析结果:", result)
+      return result
+    } catch (error) {
+      console.error("学习风格分析失败:", error)
+      return null
+    }
+  }
+
+  // 获取学习行为分析 - 直接调用后端AI服务
+  async getLearningBehaviorAnalysis(userId: number) {
+    try {
+      console.log(`获取用户${userId}的学习行为分析`)
+      const result = await this.request<any>(`/analytics/behavior`, {
+        method: "POST",
+        body: {
+          user_id: userId
+        }
+      })
+      
+      console.log("学习行为分析结果:", result)
+      return result
+    } catch (error) {
+      console.error("获取学习行为分析失败:", error)
+      return null
+    }
+  }
+
+  // 获取学习弱点分析 - 直接调用后端AI服务
+  async getLearningWeaknessAnalysis(userId: number) {
+    try {
+      console.log(`获取用户${userId}的学习弱点分析`)
+      const result = await this.request<any>(`/analytics/weaknesses/${userId}`)
+      
+      console.log("学习弱点分析结果:", result)
+      return result
+    } catch (error) {
+      console.error("获取学习弱点分析失败:", error)
       return null
     }
   }

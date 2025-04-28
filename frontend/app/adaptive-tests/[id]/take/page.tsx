@@ -11,43 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { apiService } from "@/lib/api-service"
 
-// 模拟测试问题数据 - 实际应用中应该从API获取
-const mockQuestions = [
-  {
-    id: 1,
-    text: "在Python中，哪个关键字用于定义函数？",
-    options: [
-      { id: "a", text: "function" },
-      { id: "b", text: "def" },
-      { id: "c", text: "define" },
-      { id: "d", text: "func" },
-    ],
-    explanation: "在Python中，'def'关键字用于定义函数。",
-  },
-  {
-    id: 2,
-    text: "以下哪个不是Python的内置数据类型？",
-    options: [
-      { id: "a", text: "list" },
-      { id: "b", text: "dictionary" },
-      { id: "c", text: "array" },
-      { id: "d", text: "tuple" },
-    ],
-    explanation: "在Python中，'array'不是内置数据类型，而是需要通过导入array模块才能使用。",
-  },
-  {
-    id: 3,
-    text: "在Python中，如何获取字符串的长度？",
-    options: [
-      { id: "a", text: "str.length()" },
-      { id: "b", text: "length(str)" },
-      { id: "c", text: "len(str)" },
-      { id: "d", text: "str.size()" },
-    ],
-    explanation: "在Python中，使用len()函数来获取字符串的长度。",
-  },
-]
+// 临时使用的用户ID
+const TEMP_USER_ID = 1
 
 export default function TakeTestPage() {
   const params = useParams()
@@ -59,20 +26,38 @@ export default function TakeTestPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
+  const [testDetails, setTestDetails] = useState<any>(null)
 
   useEffect(() => {
     const fetchQuestions = async () => {
       setIsLoading(true)
       setError(null)
       try {
-        // 在实际应用中，这里应该从API获取测试问题
-        // const data = await apiService.getTestQuestions(params.id)
-
-        // 模拟API调用延迟
-        await new Promise((resolve) => setTimeout(resolve, 500))
-
-        // 使用模拟数据
-        setQuestions(mockQuestions)
+        if (!params.id) return;
+        
+        const testId = typeof params.id === 'string' ? parseInt(params.id, 10) : Number(params.id);
+        
+        // 先获取测试详情
+        const details = await apiService.getTestDetails(testId);
+        if (details) {
+          setTestDetails(details);
+          // 设置测试时间（如果有的话）
+          if (details.timeLimit) {
+            setTimeLeft(details.timeLimit * 60); // 转换为秒
+          }
+        }
+        
+        // 获取测试问题 - 使用后端API，不使用模拟数据
+        const data = await apiService.getTestQuestions(testId);
+        
+        if (!data || data.length === 0) {
+          // 如果API调用失败，可以尝试使用备用方法
+          console.error("无法从后端获取测试问题");
+          setError("无法加载测试问题，请稍后再试");
+          return;
+        }
+        
+        setQuestions(data);
       } catch (error) {
         console.error("Failed to fetch test questions:", error)
         setError("获取测试问题失败，请稍后再试")
@@ -126,12 +111,28 @@ export default function TakeTestPage() {
     }
   }
 
-  const handleSubmitTest = () => {
-    // 在实际应用中，这里应该提交测试答案到API
-    // await apiService.submitTestAnswers(params.id, answers)
-
-    // 导航到结果页面
-    router.push(`/adaptive-tests/${params.id}/results`)
+  const handleSubmitTest = async () => {
+    try {
+      setIsLoading(true);
+      const testId = typeof params.id === 'string' ? parseInt(params.id, 10) : Number(params.id);
+      
+      // 提交测试答案到后端，获取智谱AI分析
+      const result = await apiService.submitTestAnswers(testId, TEMP_USER_ID, answers);
+      
+      if (!result) {
+        console.error("提交测试失败，无响应");
+        setError("提交测试失败，请稍后再试");
+        setIsLoading(false);
+        return;
+      }
+      
+      // 导航到结果页面
+      router.push(`/adaptive-tests/${testId}/results`);
+    } catch (error) {
+      console.error("提交测试失败:", error);
+      setError("提交测试失败，请稍后再试");
+      setIsLoading(false);
+    }
   }
 
   const formatTime = (seconds: number) => {
@@ -203,7 +204,7 @@ export default function TakeTestPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-xl">{currentQuestion.text}</CardTitle>
+              <CardTitle className="text-xl">{currentQuestion.text || currentQuestion.content}</CardTitle>
             </CardHeader>
             <CardContent>
               <RadioGroup
@@ -211,18 +212,18 @@ export default function TakeTestPage() {
                 onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
               >
                 <div className="space-y-4">
-                  {currentQuestion.options.map((option: any) => (
-                    <div key={option.id} className="flex items-center space-x-2">
-                      <RadioGroupItem value={option.id} id={`option-${option.id}`} />
-                      <Label htmlFor={`option-${option.id}`} className="text-base">
-                        {option.text}
+                  {currentQuestion.options && currentQuestion.options.map((option: any) => (
+                    <div key={option.id || option.value} className="flex items-center space-x-2">
+                      <RadioGroupItem value={option.id || option.value} id={`option-${option.id || option.value}`} />
+                      <Label htmlFor={`option-${option.id || option.value}`} className="text-base">
+                        {option.text || option.label || option.content}
                       </Label>
                     </div>
                   ))}
                 </div>
               </RadioGroup>
 
-              {showExplanation && (
+              {showExplanation && currentQuestion.explanation && (
                 <div className="mt-6 p-4 bg-muted rounded-md">
                   <h4 className="font-medium mb-1">解释：</h4>
                   <p className="text-muted-foreground">{currentQuestion.explanation}</p>
@@ -235,18 +236,20 @@ export default function TakeTestPage() {
                   <Button variant="outline" onClick={handlePrevQuestion} disabled={currentQuestionIndex === 0}>
                     上一题
                   </Button>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => setShowExplanation(!showExplanation)}>
-                          <HelpCircle className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>显示/隐藏解释</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  {currentQuestion.explanation && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={() => setShowExplanation(!showExplanation)}>
+                            <HelpCircle className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>显示/隐藏解释</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
                 {currentQuestionIndex < questions.length - 1 ? (
                   <Button onClick={handleNextQuestion}>

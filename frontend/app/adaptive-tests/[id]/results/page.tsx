@@ -7,22 +7,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { apiService } from "@/lib/api-service"
 
-// 模拟测试结果数据 - 实际应用中应该从API获取
-const mockResults = {
-  score: 67,
-  totalQuestions: 15,
-  correctAnswers: 10,
-  timeSpent: "18:24",
-  strengths: ["变量和数据类型", "基本语法"],
-  weaknesses: ["函数", "异常处理"],
-  recommendations: ["复习Python函数的定义和使用", "学习更多关于异常处理的知识", "尝试完成更多实践项目来巩固基础知识"],
-  questionAnalysis: [
-    { id: 1, correct: true, topic: "基本语法", difficulty: "简单" },
-    { id: 2, correct: false, topic: "数据类型", difficulty: "中等" },
-    { id: 3, correct: true, topic: "函数", difficulty: "中等" },
-  ],
-}
+// 临时使用的用户ID
+const TEMP_USER_ID = 1
 
 export default function TestResultsPage() {
   const params = useParams()
@@ -36,14 +24,16 @@ export default function TestResultsPage() {
       setIsLoading(true)
       setError(null)
       try {
-        // 在实际应用中，这里应该从API获取测试结果
-        // const data = await apiService.getTestResults(params.id)
-
-        // 模拟API调用延迟
-        await new Promise((resolve) => setTimeout(resolve, 500))
-
-        // 使用模拟数据
-        setResults(mockResults)
+        // 通过API获取测试结果
+        const testId = typeof params.id === 'string' ? parseInt(params.id, 10) : Number(params.id);
+        const data = await apiService.getTestResults(testId, TEMP_USER_ID);
+        
+        if (!data) {
+          setError("未找到测试结果");
+          return;
+        }
+        
+        setResults(data);
       } catch (error) {
         console.error("Failed to fetch test results:", error)
         setError("获取测试结果失败，请稍后再试")
@@ -136,91 +126,100 @@ export default function TestResultsPage() {
                 </svg>
               </div>
               <CardDescription>
-                {results.correctAnswers} / {results.totalQuestions} 正确答案 | 用时 {results.timeSpent}
+                {results.correctAnswers} / {results.totalQuestions} 正确答案 | 用时 {results.timeSpent || "未记录"}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium mb-2">优势领域</h3>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {results.strengths.map((strength: string, index: number) => (
-                      <li key={index} className="text-muted-foreground">
-                        {strength}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h3 className="font-medium mb-2">需要改进的领域</h3>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {results.weaknesses.map((weakness: string, index: number) => (
-                      <li key={index} className="text-muted-foreground">
-                        {weakness}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {results.strengths && results.strengths.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">优势领域</h3>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {results.strengths.map((strength: string, index: number) => (
+                        <li key={index} className="text-muted-foreground">
+                          {strength}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {results.weaknesses && results.weaknesses.length > 0 && (
+                  <div>
+                    <h3 className="font-medium mb-2">需要改进的领域</h3>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {results.weaknesses.map((weakness: string, index: number) => (
+                        <li key={index} className="text-muted-foreground">
+                          {weakness}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>学习建议</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc pl-5 space-y-2">
-                {results.recommendations.map((recommendation: string, index: number) => (
-                  <li key={index} className="text-muted-foreground">
-                    {recommendation}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-            <CardFooter>
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => router.push(`/adaptive-tests/${params.id}`)}
-                >
-                  查看详情
-                </Button>
-                <Button className="w-full" onClick={() => router.push("/adaptive-tests")}>
-                  <Home className="mr-2 h-4 w-4" />
-                  返回测试列表
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
+          {results.recommendations && results.recommendations.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>学习建议</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc pl-5 space-y-2">
+                  {results.recommendations.map((recommendation: string, index: number) => (
+                    <li key={index} className="text-muted-foreground">
+                      {recommendation}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => router.push(`/adaptive-tests/${params.id}`)}
+                  >
+                    查看详情
+                  </Button>
+                  <Button className="w-full" onClick={() => router.push("/adaptive-tests")}>
+                    <Home className="mr-2 h-4 w-4" />
+                    返回测试列表
+                  </Button>
+                </div>
+              </CardFooter>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>问题分析</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {results.questionAnalysis.map((question: any) => (
-                  <div key={question.id} className="flex items-start gap-3 p-3 rounded-lg border">
-                    {question.correct ? (
-                      <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
-                    )}
-                    <div>
-                      <p className="font-medium">问题 {question.id}</p>
-                      <div className="flex gap-2 mt-1 text-sm text-muted-foreground">
-                        <span>主题: {question.topic}</span>
-                        <span>•</span>
-                        <span>难度: {question.difficulty}</span>
+          {results.questionAnalysis && results.questionAnalysis.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>问题分析</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {results.questionAnalysis.map((question: any) => (
+                    <div key={question.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                      {question.correct ? (
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                      )}
+                      <div>
+                        <p className="font-medium">问题 {question.id}</p>
+                        <div className="flex gap-2 mt-1 text-sm text-muted-foreground">
+                          <span>主题: {question.topic}</span>
+                          <span>•</span>
+                          <span>难度: {question.difficulty}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <div className="text-center py-12">
