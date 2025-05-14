@@ -117,6 +117,51 @@ def init_test_user(db: Session) -> None:
         print(f"Error creating test user: {e}")
         raise
 
+def init_learning_content(db: Session) -> None:
+    """Initialize test learning content for development"""
+    try:
+        # 检查是否已存在内容
+        existing_content = db.query(LearningContent).first()
+        if existing_content:
+            print(f"已存在学习内容，跳过初始化")
+            return
+            
+        # 首先创建一个标签
+        programming_tag = ContentTag(
+            name="Programming",
+            description="Programming related content"
+        )
+        db.add(programming_tag)
+        db.flush()  # 获取ID
+        
+        # 创建学习内容
+        content = LearningContent(
+            title="测试内容",
+            description="这是一个测试内容",
+            content_type="reading",
+            subject="programming",
+            difficulty_level=1,
+            content_data={"text": "这是测试内容的正文"},
+            # 确保添加亲和度字段的默认值
+            visual_affinity=50.0,
+            auditory_affinity=30.0,
+            kinesthetic_affinity=20.0,
+            reading_affinity=70.0,
+            # 不直接设置tags属性
+        )
+        db.add(content)
+        db.flush()  # 获取内容ID
+        
+        # 使用append方法添加标签
+        content.tags.append(programming_tag)
+        
+        db.commit()
+        print("测试学习内容创建成功")
+    except Exception as e:
+        db.rollback()
+        print(f"创建测试学习内容失败: {str(e)}")
+        raise
+
 def reset_db() -> None:
     """Reset database by removing and recreating it"""
     if settings.SQLALCHEMY_DATABASE_URI.startswith('sqlite:///'):
@@ -157,6 +202,7 @@ def init_db(db: Session = None) -> None:
             # Initialize test data
             init_test_user(db)
             init_assessment_questions(db)
+            init_learning_content(db)
             
             print("Database initialized successfully")
         finally:

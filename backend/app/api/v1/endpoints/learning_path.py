@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, Request
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.learning_path import LearningPath, PathEnrollment
@@ -371,13 +371,28 @@ async def update_path_progress(
             detail=f"更新路径进度失败: {str(e)}"
         )
 
+# 修改为同时支持GET和POST请求
 @router.get("/recommended", response_model=List[Dict[str, Any]])
+@router.post("/recommended", response_model=List[Dict[str, Any]])
 async def get_recommended_learning_paths(
-    user_id: int = Query(..., description="用户ID"),
+    request: Request,
+    user_id: int = Query(None, description="用户ID"),
     db: Session = Depends(get_db)
 ):
     """获取推荐给用户的学习路径"""
     try:
+        # 从POST请求体或查询参数获取用户ID
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                if not user_id:
+                    user_id = body.get("user_id")
+            except:
+                pass
+                
+        if not user_id:
+            raise HTTPException(status_code=400, detail="必须提供用户ID")
+            
         # 获取用户信息，包括学习偏好
         user = db.query(User).filter(User.id == user_id).first()
         if not user:

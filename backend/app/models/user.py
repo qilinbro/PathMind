@@ -27,6 +27,7 @@ class User(Base):
     assessments = relationship("app.models.learning_assessment.LearningStyleAssessment", back_populates="user")
     # 其他关系保持不变
     content_interactions = relationship("app.models.content.UserContentInteraction", back_populates="user")
+    # 修改这里，确保与ContentInteraction中的back_populates值匹配
     interaction_records = relationship("ContentInteraction", back_populates="user")
     created_paths = relationship("LearningPath", foreign_keys="LearningPath.created_by", back_populates="author")
     path_enrollments = relationship("PathEnrollment", back_populates="user")

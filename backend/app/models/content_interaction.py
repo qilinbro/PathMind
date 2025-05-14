@@ -24,9 +24,9 @@ class ContentInteraction(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # 修正关系定义，确保与User模型中的interaction_records匹配
+    # 修改这里：将 back_populates 从 "interactions" 改为 "content_interactions"
     user = relationship("User", back_populates="interaction_records")
-    content = relationship("LearningContent", back_populates="interactions")
+    content = relationship("LearningContent", back_populates="content_interactions") 
     
     def __repr__(self):
         return f"<ContentInteraction {self.id}: User {self.user_id} - Content {self.content_id}>"
